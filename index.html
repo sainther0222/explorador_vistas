@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Explorador de Vistas Ortogonales</title>
+<style>
+  :root{
+    --c1:#FFBC0A; --c2:#0ACBB7; --c3:#DF67A9; --c4:#DF67A9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:Arial,sans-serif;
+    background:linear-gradient(135deg,#0d0f2e 0%,#1a0d3a 30%,#0d1f3a 60%,#0a1a2e 100%);
+    color:#fff;
+    min-height:100vh;
+    padding:12px;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;
+    background:
+      radial-gradient(ellipse at 20% 20%,rgba(223,103,169,.15) 0%,transparent 50%),
+      radial-gradient(ellipse at 80% 80%,rgba(10,203,183,.10) 0%,transparent 50%);
+    pointer-events:none;z-index:0;
+  }
+
+  #app{position:relative;z-index:1;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:10px;}
+
+  /* ── HEADER ── */
+  header{
+    border-bottom:2px solid rgba(223,103,169,.4);
+    padding-bottom:8px;
+    display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px;
+  }
+  h1{font-size:clamp(20px,3.5vw,36px);color:var(--c1);text-shadow:0 0 16px rgba(255,188,10,.5);}
+  h2{font-size:clamp(12px,2vw,17px);color:var(--c3);}
+  nav{display:flex;flex-wrap:wrap;gap:6px;}
+  .nav-btn{
+    padding:6px 14px;border-radius:999px;border:2px solid rgba(223,103,169,.4);
+    background:rgba(10,8,40,.6);color:#ccc;cursor:pointer;font-size:clamp(12px,1.4vw,15px);
+    font-weight:600;transition:all .25s;
+  }
+  .nav-btn:hover{border-color:var(--c3);color:#fff;transform:translateY(-2px);box-shadow:0 6px 20px rgba(223,103,169,.4);}
+  .nav-btn.active{background:linear-gradient(135deg,var(--c1),#e09000);color:#000;border-color:var(--c1);}
+
+  /* ── MAIN GRID ── */
+  main{
+    display:grid;
+    grid-template-columns:220px 1fr 1fr;
+    grid-template-rows:auto auto;
+    gap:10px;
+  }
+  @media(max-width:900px){
+    main{grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto;}
+    #controlsPanel{grid-column:1/3;grid-row:1/2;}
+    #isoPanel    {grid-column:1/2;grid-row:2/3;}
+    #frontPanel  {grid-column:2/3;grid-row:2/3;}
+    #topPanel    {grid-column:1/2;grid-row:3/4;}
+    #sidePanel   {grid-column:2/3;grid-row:3/4;}
+  }
+  @media(max-width:540px){
+    main{grid-template-columns:1fr;}
+    #controlsPanel,#isoPanel,#frontPanel,#topPanel,#sidePanel{grid-column:1/2;grid-row:auto;}
+  }
+
+  section{
+    background:rgba(5,5,30,.75);border-radius:16px;border:1px solid rgba(223,103,169,.25);
+    padding:10px 14px;backdrop-filter:blur(4px);box-shadow:0 10px 20px rgba(0,0,0,.4);
+    transition:border-color .3s;
+  }
+  section:hover{border-color:rgba(223,103,169,.5);}
+
+  #controlsPanel{grid-column:1/2;grid-row:1/3;}
+  #isoPanel     {grid-column:2/3;grid-row:1/2;}
+  #frontPanel   {grid-column:3/4;grid-row:1/2;}
+  #topPanel     {grid-column:2/3;grid-row:2/3;}
+  #sidePanel    {grid-column:3/4;grid-row:2/3;}
+
+  /* ── PANEL TITLES ── */
+  .panel-title{font-size:clamp(12px,1.4vw,16px);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;}
+  .chip{font-size:11px;padding:2px 12px;border-radius:999px;border:1px solid rgba(223,103,169,.4);color:#bbb;background:rgba(223,103,169,.1);}
+
+  /* ── CANVASES ── */
+  canvas{display:block;width:100%;background:rgba(10,10,30,.8);border-radius:12px;}
+  #isoCanvas  {height:clamp(180px,22vw,340px);}
+  #frontCanvas{height:clamp(140px,16vw,260px);}
+  #topCanvas  {height:clamp(140px,16vw,260px);}
+  #sideCanvas {height:clamp(140px,16vw,260px);}
+
+  /* ── CONTROLS ── */
+  #controlsPanel h3{font-size:clamp(14px,1.8vw,18px);margin-bottom:6px;color:var(--c1);}
+  .slider-block{margin-top:10px;}
+  .slider-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;font-size:clamp(12px,1.4vw,14px);}
+  .slider-label span.value{background:rgba(223,103,169,.15);padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid rgba(223,103,169,.3);}
+  input[type=range]{width:100%;accent-color:var(--c3);}
+  .measure-box{margin-top:10px;padding:8px;background:rgba(223,103,169,.08);border-radius:8px;font-size:12px;border:1px solid rgba(223,103,169,.2);}
+  .measure-box strong{color:var(--c2);}
+  .hint{margin-top:8px;font-size:11px;color:#bbb;line-height:1.5;}
+
+  .shape-selector{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap;}
+  .shape-card{
+    flex:1;min-width:55px;padding:6px 4px;border-radius:8px;
+    background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.1);
+    text-align:center;font-size:11px;color:#ccc;cursor:pointer;transition:all .25s;
+  }
+  .shape-card span{display:block;font-size:10px;margin-top:2px;opacity:.7;}
+  .shape-card:hover{border-color:rgba(255,188,10,.5);color:#fff;transform:translateY(-2px);background:rgba(255,188,10,.08);}
+  .shape-card.active{border-color:var(--c1);color:var(--c1);background:rgba(255,188,10,.12);box-shadow:0 4px 14px rgba(255,188,10,.25);}
+
+  .legend{margin-top:4px;font-size:11px;color:#ccc;}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;}
+
+  /* ── AUDIO BTN ── */
+  #audioControl{position:fixed;top:14px;left:14px;z-index:9999;}
+  #muteBtn{
+    width:42px;height:42px;border-radius:50%;border:2px solid rgba(10,203,183,.6);
+    background:rgba(5,5,30,.85);color:#0ACBB7;font-size:18px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:all .25s;
+    box-shadow:0 4px 14px rgba(10,203,183,.3);backdrop-filter:blur(6px);
+  }
+  #muteBtn:hover{transform:scale(1.1);box-shadow:0 6px 22px rgba(10,203,183,.5);}
+  #muteBtn.muted{border-color:rgba(223,103,169,.6);color:#DF67A9;}
+  @keyframes pulse{0%,100%{box-shadow:0 4px 14px rgba(10,203,183,.3);}50%{box-shadow:0 4px 26px rgba(10,203,183,.7);}}
+  #muteBtn.playing{animation:pulse 2s infinite;}
+
+  /* ── MODALS ── */
+  #inicioModal,#queSonModal,#gameModal{
+    position:fixed;inset:0;background:rgba(0,0,0,.80);
+    display:none;justify-content:center;align-items:center;
+    backdrop-filter:blur(5px);z-index:200;padding:16px;
+  }
+  .info-box{
+    width:min(820px,95vw);max-height:88vh;overflow-y:auto;
+    background:linear-gradient(135deg,#0d0f2e,#1a0d3a);
+    border-radius:16px;border:1px solid rgba(223,103,169,.4);
+    padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.6);
+    animation:modalIn .3s ease;position:relative;
+  }
+  .info-box::-webkit-scrollbar{width:5px;}
+  .info-box::-webkit-scrollbar-thumb{background:rgba(223,103,169,.4);border-radius:3px;}
+  .info-close{
+    position:absolute;top:14px;right:14px;border:2px solid rgba(223,103,169,.5);
+    border-radius:999px;padding:4px 12px;font-size:12px;background:rgba(223,103,169,.1);
+    color:#DF67A9;cursor:pointer;transition:all .2s;font-weight:600;
+  }
+  .info-close:hover{background:rgba(223,103,169,.25);transform:scale(1.05);}
+
+  @keyframes modalIn{from{transform:scale(.92) translateY(20px);opacity:0;}to{transform:scale(1) translateY(0);opacity:1;}}
+
+  .pbadge-m{display:inline-block;background:rgba(223,103,169,.18);border:1px solid var(--c3);color:var(--c3);font-size:10px;font-weight:700;padding:3px 14px;border-radius:18px;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+  .inicio-content{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:12px;}
+  .inicio-content h1{font-size:clamp(24px,5vw,40px);font-weight:900;color:var(--c1);text-shadow:0 0 20px rgba(255,188,10,.5);margin-bottom:8px;}
+  .inicio-content .sub{font-size:clamp(13px,2vw,16px);color:var(--c3);margin-bottom:8px;}
+  .inicio-content .desc{font-size:13px;color:#aab;line-height:1.65;max-width:520px;margin-bottom:6px;}
+  .inicio-content .nota-m{font-size:10px;color:var(--c4);font-style:italic;margin-top:4px;}
+
+  .s2g-m{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;}
+  @media(max-width:540px){.s2g-m{grid-template-columns:1fr;}}
+  .icard-m{background:rgba(255,255,255,.05);border-radius:10px;padding:14px 16px;border:1px solid rgba(223,103,169,.2);display:flex;flex-direction:column;gap:6px;}
+  .ico-m{font-size:22px;}
+  .icard-m h3{font-size:13px;font-weight:700;color:var(--c2);}
+  .icard-m p{font-size:12px;color:#dde;line-height:1.6;}
+  .icard-m ul{list-style:none;display:flex;flex-direction:column;gap:5px;padding:0;}
+  .icard-m li{font-size:12px;color:#dde;padding-left:14px;position:relative;line-height:1.4;}
+  .icard-m li::before{content:'▶';position:absolute;left:0;color:var(--c1);font-size:8px;top:3px;}
+  .icard-m .nota-m{font-size:10px;color:var(--c4);font-style:italic;margin-top:2px;}
+  .qs-header{margin-bottom:6px;}
+  .qs-header h2{font-size:18px;font-weight:700;color:var(--c3);margin-bottom:2px;}
+  .qs-header h1{font-size:clamp(18px,4vw,26px);font-weight:900;color:var(--c1);}
+
+  /* ── GAME MODAL ── */
+  #gameBox{
+    width:min(720px,95vw);background:linear-gradient(135deg,#0d0f2e,#1a0d3a);
+    border-radius:16px;border:1px solid rgba(223,103,169,.4);padding:18px 20px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);animation:modalIn .3s ease;
+  }
+  #gameBox h3{font-size:clamp(16px,3vw,22px);color:var(--c1);margin-bottom:5px;}
+  .game-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  #progressBar{width:100%;height:7px;background:rgba(255,255,255,.1);border-radius:999px;overflow:hidden;margin-bottom:8px;}
+  #progressFill{height:100%;background:linear-gradient(90deg,var(--c3),var(--c1));border-radius:999px;transition:width .4s;width:0%;}
+  .game-stats{display:flex;gap:12px;font-size:13px;}
+  .stat-pill{padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);font-size:13px;}
+  .stat-pill span{color:var(--c1);font-weight:700;}
+  #closeGame{border:2px solid rgba(223,103,169,.5);border-radius:999px;padding:4px 12px;font-size:12px;background:rgba(223,103,169,.1);color:#DF67A9;cursor:pointer;transition:all .2s;font-weight:600;}
+  #closeGame:hover{background:rgba(223,103,169,.25);transform:scale(1.05);}
+  #quizCanvas{display:block;width:100%;height:clamp(160px,24vw,240px);background:rgba(10,10,30,.8);border-radius:10px;margin-top:6px;border:1px solid rgba(223,103,169,.2);}
+  .answer-buttons{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  .answer-buttons button{flex:1;padding:9px 8px;border-radius:999px;border:2px solid transparent;background:linear-gradient(135deg,var(--c3),#c050a0);color:#fff;cursor:pointer;font-size:clamp(13px,1.6vw,15px);font-weight:700;transition:all .25s;}
+  .answer-buttons button:hover{background:linear-gradient(135deg,var(--c2),#09b5a3);color:#000;transform:translateY(-3px);box-shadow:0 8px 22px rgba(10,203,183,.4);}
+  .answer-buttons button:active{transform:scale(.97);}
+  #newQuestionBtn{margin-top:8px;padding:7px 18px;border-radius:999px;border:none;background:linear-gradient(135deg,var(--c1),#e09000);color:#000;cursor:pointer;font-size:clamp(13px,1.6vw,15px);font-weight:700;transition:all .25s;box-shadow:0 4px 14px rgba(255,188,10,.3);}
+  #newQuestionBtn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,188,10,.5);}
+  #feedback{display:block;margin-top:5px;font-size:14px;min-height:20px;font-weight:600;}
+  #resultsScreen{display:none;flex-direction:column;align-items:center;justify-content:center;padding:16px;text-align:center;}
+  #resultsScreen h2{font-size:clamp(20px,4vw,28px);color:var(--c1);margin-bottom:10px;}
+  .result-score-big{font-size:clamp(52px,12vw,76px);font-weight:900;line-height:1;background:linear-gradient(135deg,var(--c1),var(--c3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:8px 0;}
+  .result-label{font-size:14px;color:#bbb;margin-bottom:14px;}
+  .result-badge{font-size:42px;margin-bottom:8px;}
+  .result-msg{font-size:17px;color:#fff;margin-bottom:16px;font-weight:600;}
+  #restartBtn{padding:9px 28px;border-radius:999px;border:none;background:linear-gradient(135deg,var(--c2),#09b5a3);color:#000;cursor:pointer;font-size:16px;font-weight:700;transition:all .25s;box-shadow:0 4px 18px rgba(10,203,183,.4);}
+  #restartBtn:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(10,203,183,.55);}
+  #quizGameArea{display:block;}
+</style>
+</head>
+<body>
+
+<div id="audioControl">
+  <button id="muteBtn" title="Activar / Silenciar música">🔊</button>
+</div>
+
+<div id="app">
+  <header>
+    <div>
+      <h1>Explorador interactivo</h1>
+      <h2>Elige un modelo · ajusta las dimensiones · observa las vistas</h2>
+    </div>
+    <nav>
+      <button class="nav-btn" id="navInicio">🏠 Inicio</button>
+      <button class="nav-btn" id="navQueSon">📐 ¿Qué son?</button>
+      <button class="nav-btn active" id="navExplorer">🔭 Explorador</button>
+      <button class="nav-btn" id="navGame">🎮 Minijuego</button>
+    </nav>
+  </header>
+
+  <main id="explorer">
+    <section id="controlsPanel">
+      <h3>🎮 Controles</h3>
+      <div class="slider-block">
+        <div class="slider-label" style="color:var(--c1)"><span>Anchura</span><span class="value" id="valW">4 u</span></div>
+        <input type="range" id="widthSlider" min="2" max="6" value="3">
+        <small>Eje horizontal ↔</small>
+      </div>
+      <div class="slider-block">
+        <div class="slider-label" style="color:var(--c2)"><span>Altura</span><span class="value" id="valH">3 u</span></div>
+        <input type="range" id="heightSlider" min="2" max="6" value="3">
+        <small>Eje vertical ↕</small>
+      </div>
+      <div class="slider-block">
+        <div class="slider-label" style="color:var(--c4)"><span>Profundidad</span><span class="value" id="valD">3 u</span></div>
+        <input type="range" id="depthSlider" min="2" max="6" value="3">
+        <small>Eje de fondo ⤳</small>
+      </div>
+      <div class="measure-box">
+        <strong>Medidas actuales</strong><br>
+        Ancho: <span id="mW">4</span> u · Alto: <span id="mH">3</span> u · Prof: <span id="mD">3</span> u
+      </div>
+      <p class="hint">Mueve las barras y observa cómo cambian todas las vistas.</p>
+      <div class="shape-selector">
+        <div class="shape-card active" data-shape="caja">Caja<span>Prisma</span></div>
+        <div class="shape-card" data-shape="escalon">Escalón<span>Base+nivel</span></div>
+        <div class="shape-card" data-shape="cunia">Cuña<span>Inclinado</span></div>
+        <div class="shape-card" data-shape="hueco">Hueco<span>Con vacío</span></div>
+        <div class="shape-card" data-shape="piramide_cubos">Pirámide<span>Escalonada</span></div>
+        <div class="shape-card" data-shape="escalon_cunia">Esc+Cuña<span>Con rampa</span></div>
+        <div class="shape-card" data-shape="marco_L">Marco L<span>Estructura</span></div>
+      </div>
+    </section>
+
+    <section id="isoPanel">
+      <div class="panel-title"><span>Vista isométrica 3D</span><span class="chip">Arrastra para rotar</span></div>
+      <canvas id="isoCanvas"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:#DF67A9"></span>Lateral</span>
+        <span style="margin-left:8px"><span class="dot" style="background:#0ACBB7"></span>Superior</span>
+        <span style="margin-left:8px"><span class="dot" style="background:#FFBC0A"></span>Frontal</span>
+      </div>
+    </section>
+
+    <section id="frontPanel">
+      <div class="panel-title"><span>Vista Lateral</span><span class="chip">Ancho × Alto</span></div>
+      <canvas id="frontCanvas"></canvas>
+    </section>
+
+    <section id="topPanel">
+      <div class="panel-title"><span>Vista Superior</span><span class="chip">Ancho × Prof</span></div>
+      <canvas id="topCanvas"></canvas>
+    </section>
+
+    <section id="sidePanel">
+      <div class="panel-title"><span>Vista Frontal</span><span class="chip">Prof × Alto</span></div>
+      <canvas id="sideCanvas"></canvas>
+    </section>
+  </main>
+</div>
+
+<!-- MODALES -->
+<div id="inicioModal">
+  <div class="info-box">
+    <button class="info-close" id="closeInicio">✕ Cerrar</button>
+    <div class="inicio-content">
+      <div class="pbadge-m">📐 Geometría Espacial · Grado 4° y 5°</div>
+      <h1>Vistas Ortogonales</h1>
+      <p class="sub">¿Cómo se ve una figura desde diferentes lados?</p>
+      <p class="desc">Aprende a mirar las figuras desde el frente, el lado y desde arriba.<br>¡Como un superhéroe con súper poderes de visión! 🦸</p>
+      <p class="nota-m">📌 Incluye: Explicación · 7 Modelos Interactivos · Minijuego Evaluativo</p>
+    </div>
+  </div>
+</div>
+
+<div id="queSonModal">
+  <div class="info-box">
+    <button class="info-close" id="closeQueSon">✕ Cerrar</button>
+    <div class="qs-header">
+      <h2>¿Qué son las Vistas Ortogonales?</h2>
+      <h1>Mirando figuras desde distintos lados</h1>
+    </div>
+    <div class="s2g-m">
+      <div class="icard-m"><div class="ico-m">👁️</div><h3>¿Qué significa "ortogonal"?</h3><p>La palabra <strong style="color:var(--c1)">ortogonal</strong> significa "en ángulo recto". Miramos la figura <strong>directamente de frente</strong>, sin inclinar la cabeza.</p><p class="nota-m">📌 "Orto" = derecho · "Gonal" = ángulo</p></div>
+      <div class="icard-m"><div class="ico-m">📦</div><h3>¿Para qué sirven?</h3><ul><li>Los <strong style="color:var(--c1)">arquitectos</strong> las usan para diseñar casas y edificios</li><li>Los <strong style="color:var(--c1)">ingenieros</strong> para construir máquinas y puentes</li><li>Los <strong style="color:var(--c1)">diseñadores</strong> para crear juguetes y objetos</li></ul><p class="nota-m">📌 Son el idioma secreto de los constructores</p></div>
+      <div class="icard-m"><div class="ico-m">🎯</div><h3>Las 3 vistas principales</h3><ul><li><strong style="color:var(--c1)">Vista Lateral</strong> (rosa): Ancho × Alto</li><li><strong style="color:var(--c3)">Vista Superior</strong> (turquesa): Ancho × Prof</li><li><strong style="color:var(--c2)">Vista Frontal</strong> (ámbar): Prof × Alto</li></ul><p class="nota-m">📌 ¡Con 3 vistas podemos entender cualquier figura!</p></div>
+      <div class="icard-m" style="border-color:rgba(255,188,10,.22)"><div class="ico-m">💡</div><h3 style="color:var(--c1)">¡Datos curiosos!</h3><ul><li>Los planos de casas usan vistas ortogonales</li><li>Los mapas son vistas superiores del planeta</li><li>¡Minecraft usa cuadrículas muy parecidas!</li></ul><p class="nota-m">📌 ¡La geometría está en todos lados!</p></div>
+    </div>
+  </div>
+</div>
+
+<div id="gameModal">
+  <div id="gameBox">
+    <div id="quizGameArea">
+      <div class="game-header">
+        <h3>🧩 Minijuego de vistas</h3>
+        <button id="closeGame">✕ Cerrar</button>
+      </div>
+      <div id="progressBar"><div id="progressFill"></div></div>
+      <div class="game-stats">
+        <div class="stat-pill">Pregunta: <span id="questionCount">0</span>/10</div>
+        <div class="stat-pill">Puntos: <span id="score">0</span>/50</div>
+      </div>
+      <p style="margin-top:7px;font-size:13px;color:#ccc">Observa la figura y responde si es vista de <strong style="color:var(--c1)">Frente</strong>, <strong style="color:var(--c2)">Arriba</strong> o <strong style="color:var(--c4)">Lateral</strong>.</p>
+      <canvas id="quizCanvas"></canvas>
+      <div class="answer-buttons">
+        <button data-answer="lado">↔ Lateral</button>
+        <button data-answer="arriba">⬆ Arriba</button>
+        <button data-answer="frente">👁 Frente</button>
+      </div>
+      <button id="newQuestionBtn">▶ Nueva pregunta</button>
+      <span id="feedback"></span>
+    </div>
+    <div id="resultsScreen">
+      <div class="result-badge" id="resultBadge">🏆</div>
+      <h2>¡Juego terminado!</h2>
+      <div class="result-score-big" id="finalScore">0</div>
+      <div class="result-label">puntos de 50</div>
+      <div class="result-msg" id="resultMsg">¡Bien hecho!</div>
+      <div style="font-size:13px;color:#aaa;margin-bottom:16px" id="resultDetail"></div>
+      <button id="restartBtn">🔄 Jugar de nuevo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let dims={w:4,h:3,d:3};
+let currentShape="caja";
+const isoCanvas=document.getElementById("isoCanvas");
+const frontCanvas=document.getElementById("frontCanvas");
+const topCanvas=document.getElementById("topCanvas");
+const sideCanvas=document.getElementById("sideCanvas");
+const quizCanvas=document.getElementById("quizCanvas");
+const isoCtx=isoCanvas.getContext("2d");
+const frontCtx=frontCanvas.getContext("2d");
+const topCtx=topCanvas.getContext("2d");
+const sideCtx=sideCanvas.getContext("2d");
+const quizCtx=quizCanvas.getContext("2d");
+
+function resizeAllCanvases(){
+  [isoCanvas,frontCanvas,topCanvas,sideCanvas].forEach(c=>{
+    const r=c.getBoundingClientRect();
+    c.width=r.width||300; c.height=r.height||200;
+  });
+  const qr=quizCanvas.getBoundingClientRect();
+  quizCanvas.width=qr.width||400; quizCanvas.height=qr.height||200;
+}
+
+let rotX=-28,rotY=45,isDragging=false,lastMX=0,lastMY=0;
+const CF='rgba(223,103,169,0.90)';
+const CT='rgba(10,203,183,0.90)';
+const CS='rgba(255,188,10,0.90)';
+
+function deg(a){return a*Math.PI/180;}
+function rotate3D(px,py,pz){
+  const ry=deg(rotY);
+  let x1=px*Math.cos(ry)+pz*Math.sin(ry),y1=py,z1=-px*Math.sin(ry)+pz*Math.cos(ry);
+  const rx=deg(rotX);
+  return{x:x1,y:-(y1*Math.cos(rx)-z1*Math.sin(rx)),z:y1*Math.sin(rx)+z1*Math.cos(rx)};
+}
+function drawFacePoly(ctx,pts,c1,c2){
+  if(pts.length<3)return;
+  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
+  ctx.closePath();
+  if(c2){const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);const g=ctx.createLinearGradient(Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys));g.addColorStop(0,c1);g.addColorStop(1,c2);ctx.fillStyle=g;}
+  else ctx.fillStyle=c1;
+  ctx.fill();ctx.strokeStyle='rgba(255,255,255,0.28)';ctx.lineWidth=1.4;ctx.stroke();
+}
+function drawFaceWithHole(ctx,outerPts,innerPts,c1){
+  ctx.beginPath();
+  outerPts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();
+  for(let i=innerPts.length-1;i>=0;i--){i===innerPts.length-1?ctx.moveTo(innerPts[i].x,innerPts[i].y):ctx.lineTo(innerPts[i].x,innerPts[i].y);}
+  ctx.closePath();ctx.fillStyle=c1;ctx.fill('evenodd');
+  ctx.strokeStyle='rgba(255,255,255,0.28)';ctx.lineWidth=1.4;ctx.stroke();
+}
+
+function getGeometry(shape,w,h,d){
+  const hw=w/2,hh=h/2,hd=d/2;
+  if(shape==='caja'){
+    const V=[[-hw,-hh,-hd],[hw,-hh,-hd],[hw,hh,-hd],[-hw,hh,-hd],[-hw,-hh,hd],[hw,-hh,hd],[hw,hh,hd],[-hw,hh,hd]];
+    return{V,F:[{v:[3,2,1,0],c:CF},{v:[4,5,6,7],c:CF},{v:[7,6,2,3],c:CT},{v:[0,1,5,4],c:CT},{v:[1,2,6,5],c:CS},{v:[0,4,7,3],c:CS}]};
+  }
+  if(shape==='escalon'){
+    const bH=h*0.5,tH=h*0.5,lW=Math.max(1,w*0.5),cy1=-tH/2,cy2=bH/2;
+    const B=[[-hw,cy1-bH/2,-hd],[hw,cy1-bH/2,-hd],[hw,cy1+bH/2,-hd],[-hw,cy1+bH/2,-hd],[-hw,cy1-bH/2,hd],[hw,cy1-bH/2,hd],[hw,cy1+bH/2,hd],[-hw,cy1+bH/2,hd]];
+    const T=[[-hw,cy2-tH/2,-hd],[-hw+lW,cy2-tH/2,-hd],[-hw+lW,cy2+tH/2,-hd],[-hw,cy2+tH/2,-hd],[-hw,cy2-tH/2,hd],[-hw+lW,cy2-tH/2,hd],[-hw+lW,cy2+tH/2,hd],[-hw,cy2+tH/2,hd]];
+    const V=[...B,...T];
+    return{V,F:[{v:[3,2,1,0],c:CF},{v:[4,5,6,7],c:CF},{v:[7,6,2,3],c:CT},{v:[0,1,5,4],c:CT},{v:[1,2,6,5],c:CS},{v:[0,4,7,3],c:CS},{v:[11,10,9,8],c:CF},{v:[12,13,14,15],c:CF},{v:[15,14,10,11],c:CT},{v:[8,9,13,12],c:CT},{v:[9,10,14,13],c:CS},{v:[8,12,15,11],c:CS}]};
+  }
+  if(shape==='cunia'){
+    const V=[[-hw,-hh,-hd],[hw,-hh,-hd],[-hw,hh,-hd],[-hw,-hh,hd],[hw,-hh,hd],[-hw,hh,hd]];
+    return{V,F:[{v:[2,1,0],c:CF},{v:[3,4,5],c:CF},{v:[0,1,4,3],c:CT},{v:[0,3,5,2],c:CS},{v:[2,5,4,1],c:CS,c2:CT}]};
+  }
+  if(shape==='hueco'){
+    const f=0.30,iw=w*(1-2*f)/2,ih=h*(1-2*f)/2,id=d*(1-2*f)/2;
+    const V=[[-hw,-hh,-hd],[hw,-hh,-hd],[hw,hh,-hd],[-hw,hh,-hd],[-hw,-hh,hd],[hw,-hh,hd],[hw,hh,hd],[-hw,hh,hd],[-iw,-ih,-id],[iw,-ih,-id],[iw,ih,-id],[-iw,ih,-id],[-iw,-ih,id],[iw,-ih,id],[iw,ih,id],[-iw,ih,id]];
+    return{V,F:[{v:[3,2,1,0],hole:[8,9,10,11],c:CF},{v:[4,5,6,7],hole:[15,14,13,12],c:CF},{v:[7,6,2,3],hole:[11,10,14,15],c:CT},{v:[0,1,5,4],hole:[12,13,9,8],c:CT},{v:[1,2,6,5],hole:[9,10,14,13],c:CS},{v:[0,4,7,3],hole:[12,15,11,8],c:CS}]};
+  }
+  if(shape==='piramide_cubos'){
+    const u=Math.min(w,h,d)/3.2,L=-u/2,R=u/2,F2=-u/2,BK=u/2,Y0=-hh+u/2,Y1=-hh+u*1.5,Y2=-hh+u*2.5;
+    const blocks=[[L,Y0,F2,u,u,u],[R,Y0,F2,u,u,u],[L,Y0,BK,u,u,u],[R,Y0,BK,u,u,u],[L,Y1,F2,u,u,u],[L,Y1,BK,u,u,u],[L,Y2,BK,u,u,u]];
+    let V=[],F=[];
+    blocks.forEach(([cx,cy,cz,bw,bh,bd],bi)=>{const base=bi*8,bx=bw/2,by=bh/2,bz=bd/2;V.push([cx-bx,cy-by,cz-bz],[cx+bx,cy-by,cz-bz],[cx+bx,cy+by,cz-bz],[cx-bx,cy+by,cz-bz],[cx-bx,cy-by,cz+bz],[cx+bx,cy-by,cz+bz],[cx+bx,cy+by,cz+bz],[cx-bx,cy+by,cz+bz]);F.push({v:[base+3,base+2,base+1,base+0],c:CF},{v:[base+4,base+5,base+6,base+7],c:CF},{v:[base+7,base+6,base+2,base+3],c:CT},{v:[base+0,base+1,base+5,base+4],c:CT},{v:[base+1,base+2,base+6,base+5],c:CS},{v:[base+0,base+4,base+7,base+3],c:CS});});
+    return{V,F};
+  }
+  if(shape==='escalon_cunia'){
+    const cutY=hh*0.35;
+    const V=[[-hw,-hh,-hd],[hw,-hh,-hd],[hw,hh,-hd],[-hw,hh,-hd],[-hw,-hh,hd],[hw,-hh,hd],[hw,hh,hd],[-hw,hh,hd],[-hw,hh-cutY*2,-hd]];
+    return{V,F:[{v:[8,2,1,0],c:CF},{v:[4,5,6,7],c:CF},{v:[0,1,5,4],c:CT},{v:[1,2,6,5],c:CS},{v:[0,4,7,8],c:CS},{v:[7,6,2,8],c:CT}]};
+  }
+  if(shape==='marco_L'){
+    const t=Math.min(w,d)*0.30;
+    const blocks=[[-hw+t/2,0,0,t,h,d],[0,hh-t/2,-hd+t/2,w,t,t],[0,-hh+t*0.4/2,0,w,t*0.4,d]];
+    let V=[],F=[];
+    blocks.forEach(([cx,cy,cz,bw,bh,bd],bi)=>{const base=bi*8,bx=bw/2,by=bh/2,bz=bd/2;V.push([cx-bx,cy-by,cz-bz],[cx+bx,cy-by,cz-bz],[cx+bx,cy+by,cz-bz],[cx-bx,cy+by,cz-bz],[cx-bx,cy-by,cz+bz],[cx+bx,cy-by,cz+bz],[cx+bx,cy+by,cz+bz],[cx-bx,cy+by,cz+bz]);F.push({v:[base+3,base+2,base+1,base+0],c:CF},{v:[base+4,base+5,base+6,base+7],c:CF},{v:[base+7,base+6,base+2,base+3],c:CT},{v:[base+0,base+1,base+5,base+4],c:CT},{v:[base+1,base+2,base+6,base+5],c:CS},{v:[base+0,base+4,base+7,base+3],c:CS});});
+    return{V,F};
+  }
+  const V=[[-hw,-hh,-hd],[hw,-hh,-hd],[hw,hh,-hd],[-hw,hh,-hd],[-hw,-hh,hd],[hw,-hh,hd],[hw,hh,hd],[-hw,hh,hd]];
+  return{V,F:[{v:[3,2,1,0],c:CF},{v:[4,5,6,7],c:CF},{v:[7,6,2,3],c:CT},{v:[0,1,5,4],c:CT},{v:[1,2,6,5],c:CS},{v:[0,4,7,3],c:CS}]};
+}
+
+function drawIsoShape(){
+  isoCtx.clearRect(0,0,isoCanvas.width,isoCanvas.height);
+  isoCtx.save();isoCtx.translate(isoCanvas.width/2,isoCanvas.height/2);
+  const w=dims.w,h=dims.h,d=dims.d;
+  const s=Math.min(isoCanvas.width/(Math.max(w,d)+4),isoCanvas.height/(Math.max(h,d)+4))*0.82;
+  const{V,F}=getGeometry(currentShape,w,h,d);
+  const proj=V.map(([px,py,pz])=>rotate3D(px*s,py*s,pz*s));
+  const fd=F.map(f=>({...f,avgZ:f.v.reduce((sum,i)=>sum+proj[i].z,0)/f.v.length}));
+  fd.sort((a,b)=>a.avgZ-b.avgZ);
+  fd.forEach(face=>{
+    const pts=face.v.map(i=>proj[i]);
+    if(face.hole)drawFaceWithHole(isoCtx,pts,face.hole.map(i=>proj[i]),face.c);
+    else drawFacePoly(isoCtx,pts,face.c,face.c2);
+  });
+  if(rotX===-28&&rotY===45){isoCtx.font='11px Arial';isoCtx.fillStyle='rgba(255,255,255,0.32)';isoCtx.textAlign='center';isoCtx.fillText('⟳ arrastra para rotar · doble clic para resetear',0,isoCanvas.height/2-12);}
+  isoCtx.restore();
+}
+
+function initIsoRotation(){
+  function getPos(e){return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY};}
+  isoCanvas.style.cursor='grab';
+  isoCanvas.addEventListener('mousedown',e=>{isDragging=true;const p=getPos(e);lastMX=p.x;lastMY=p.y;isoCanvas.style.cursor='grabbing';});
+  isoCanvas.addEventListener('touchstart',e=>{isDragging=true;const p=getPos(e);lastMX=p.x;lastMY=p.y;},{passive:true});
+  window.addEventListener('mousemove',e=>{if(!isDragging)return;const p=getPos(e);rotY+=(p.x-lastMX)*0.5;rotX+=(p.y-lastMY)*0.5;rotX=Math.max(-89,Math.min(89,rotX));lastMX=p.x;lastMY=p.y;drawIsoShape();});
+  window.addEventListener('touchmove',e=>{if(!isDragging)return;const p=getPos(e);rotY+=(p.x-lastMX)*0.5;rotX+=(p.y-lastMY)*0.5;rotX=Math.max(-89,Math.min(89,rotX));lastMX=p.x;lastMY=p.y;drawIsoShape();},{passive:true});
+  window.addEventListener('mouseup',()=>{isDragging=false;isoCanvas.style.cursor='grab';});
+  window.addEventListener('touchend',()=>{isDragging=false;});
+  isoCanvas.addEventListener('dblclick',()=>{rotX=-28;rotY=45;drawIsoShape();});
+}
+
+function draw2D(ctx,canvas,strokeColor,getWH,drawShape){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const margin=24;
+  const{W:dw,H:dh}=getWH();
+  const scale=Math.min((canvas.width-2*margin)/dw,(canvas.height-2*margin)/dh);
+  const W=dw*scale,H=dh*scale;
+  const x=(canvas.width-W)/2,y=(canvas.height-H)/2;
+  ctx.strokeStyle=strokeColor;ctx.lineWidth=2.5;
+  drawShape(ctx,x,y,W,H,scale);
+}
+
+function drawFront(){
+  draw2D(frontCtx,frontCanvas,"#DF67A9",()=>({W:dims.w,H:dims.h}),(ctx,x,y,W,H)=>{
+    const s=currentShape;
+    if(s==="caja"){ctx.strokeRect(x,y,W,H);}
+    else if(s==="escalon"){const lW=Math.max(1,dims.w*0.5)*(W/dims.w),bH=H*0.5;ctx.strokeRect(x,y+bH,W,bH);ctx.strokeRect(x,y,lW,H);}
+    else if(s==="cunia"){ctx.beginPath();ctx.moveTo(x,y+H);ctx.lineTo(x+W,y+H);ctx.lineTo(x,y);ctx.closePath();ctx.stroke();}
+    else if(s==="hueco"){ctx.strokeRect(x,y,W,H);const fr=0.25;ctx.strokeRect(x+W*fr,y+H*fr,W*(1-2*fr),H*(1-2*fr));}
+    else if(s==="piramide_cubos"){const uh=H/3;ctx.strokeRect(x,y+H-uh,W,uh);ctx.strokeRect(x,y+H-2*uh,W/2,uh);ctx.strokeRect(x,y,W/2,uh);}
+    else if(s==="escalon_cunia"){const cY=H*0.35;ctx.beginPath();ctx.moveTo(x,y+cY);ctx.lineTo(x+W,y);ctx.lineTo(x+W,y+H);ctx.lineTo(x,y+H);ctx.closePath();ctx.stroke();}
+    else if(s==="marco_L"){const t=Math.min(W,H)*0.28;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+t,y);ctx.lineTo(x+t,y+H-t*0.4);ctx.lineTo(x+W,y+H-t*0.4);ctx.lineTo(x+W,y+H);ctx.lineTo(x,y+H);ctx.closePath();ctx.stroke();ctx.strokeRect(x,y,W,t);}
+    else ctx.strokeRect(x,y,W,H);
+  });
+}
+function drawTop(){
+  draw2D(topCtx,topCanvas,"#0ACBB7",()=>({W:dims.w,H:dims.d}),(ctx,x,y,W,H)=>{
+    const s=currentShape;
+    if(s==="caja"||s==="cunia"){ctx.strokeRect(x,y,W,H);}
+    else if(s==="escalon"){ctx.strokeRect(x,y,W,H);ctx.beginPath();ctx.moveTo(x+W*0.5,y);ctx.lineTo(x+W*0.5,y+H);ctx.stroke();}
+    else if(s==="hueco"){ctx.strokeRect(x,y,W,H);const fr=0.25;ctx.strokeRect(x+W*fr,y+H*fr,W*(1-2*fr),H*(1-2*fr));}
+    else if(s==="piramide_cubos"){ctx.strokeRect(x,y,W,H);ctx.beginPath();ctx.moveTo(x,y+H/2);ctx.lineTo(x+W,y+H/2);ctx.moveTo(x+W/2,y);ctx.lineTo(x+W/2,y+H);ctx.stroke();ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+W/2,y+H/2);ctx.stroke();ctx.setLineDash([]);}
+    else if(s==="escalon_cunia"){ctx.strokeRect(x,y,W,H);}
+    else if(s==="marco_L"){const t=Math.min(W,H)*0.28;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+W,y);ctx.lineTo(x+W,y+t);ctx.lineTo(x+t,y+t);ctx.lineTo(x+t,y+H);ctx.lineTo(x,y+H);ctx.closePath();ctx.stroke();}
+    else ctx.strokeRect(x,y,W,H);
+  });
+}
+function drawSide(){
+  draw2D(sideCtx,sideCanvas,"#FFBC0A",()=>({W:dims.d,H:dims.h}),(ctx,x,y,W,H)=>{
+    const s=currentShape;
+    if(s==="caja"||s==="cunia"){ctx.strokeRect(x,y,W,H);}
+    else if(s==="escalon"){const bH=H*0.5;ctx.strokeRect(x,y+bH,W,bH);ctx.strokeRect(x,y,W,H);}
+    else if(s==="hueco"){ctx.strokeRect(x,y,W,H);const fr=0.25;ctx.strokeRect(x+W*fr,y+H*fr,W*(1-2*fr),H*(1-2*fr));}
+    else if(s==="piramide_cubos"){const uh=H/3;ctx.strokeRect(x,y+H-uh,W,uh);ctx.strokeRect(x,y+H-2*uh,W,uh);ctx.strokeRect(x,y,W/2,uh);ctx.beginPath();ctx.moveTo(x+W/2,y+H-2*uh);ctx.lineTo(x+W/2,y+H-uh);ctx.stroke();}
+    else if(s==="escalon_cunia"){const cY=H*0.35;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+W,y+cY);ctx.lineTo(x+W,y+H);ctx.lineTo(x,y+H);ctx.closePath();ctx.stroke();}
+    else if(s==="marco_L"){const t=Math.min(W,H)*0.28;ctx.strokeRect(x,y,W,H);ctx.beginPath();ctx.moveTo(x,y+t);ctx.lineTo(x+W,y+t);ctx.moveTo(x,y+H-t*0.4);ctx.lineTo(x+W,y+H-t*0.4);ctx.stroke();}
+    else ctx.strokeRect(x,y,W,H);
+  });
+}
+function drawAll(){drawIsoShape();drawFront();drawTop();drawSide();}
+
+function updateText(){
+  document.getElementById("valW").textContent=dims.w+" u";
+  document.getElementById("valH").textContent=dims.h+" u";
+  document.getElementById("valD").textContent=dims.d+" u";
+  document.getElementById("mW").textContent=dims.w;
+  document.getElementById("mH").textContent=dims.h;
+  document.getElementById("mD").textContent=dims.d;
+}
+function initSliders(){
+  document.getElementById("widthSlider").addEventListener("input",e=>{dims.w=+e.target.value;updateText();drawAll();});
+  document.getElementById("heightSlider").addEventListener("input",e=>{dims.h=+e.target.value;updateText();drawAll();});
+  document.getElementById("depthSlider").addEventListener("input",e=>{dims.d=+e.target.value;updateText();drawAll();});
+}
+function initShapes(){
+  document.querySelectorAll(".shape-card").forEach(card=>{
+    card.addEventListener("click",()=>{
+      document.querySelectorAll(".shape-card").forEach(c=>c.classList.remove("active"));
+      currentShape=card.dataset.shape;card.classList.add("active");drawAll();
+    });
+  });
+}
+
+function setActiveNav(id){["navInicio","navQueSon","navExplorer","navGame"].forEach(n=>document.getElementById(n).classList.remove("active"));document.getElementById(id).classList.add("active");}
+function initNav(){
+  const gM=document.getElementById("gameModal"),iM=document.getElementById("inicioModal"),qM=document.getElementById("queSonModal");
+  document.getElementById("navInicio").onclick=()=>{setActiveNav("navInicio");gM.style.display="none";qM.style.display="none";iM.style.display="flex";};
+  document.getElementById("navQueSon").onclick=()=>{setActiveNav("navQueSon");gM.style.display="none";iM.style.display="none";qM.style.display="flex";};
+  document.getElementById("navGame").onclick=()=>{setActiveNav("navGame");iM.style.display="none";qM.style.display="none";gM.style.display="flex";};
+  document.getElementById("navExplorer").onclick=()=>{setActiveNav("navExplorer");gM.style.display="none";iM.style.display="none";qM.style.display="none";};
+  document.getElementById("closeInicio").onclick=()=>{iM.style.display="none";setActiveNav("navExplorer");};
+  document.getElementById("closeQueSon").onclick=()=>{qM.style.display="none";setActiveNav("navExplorer");};
+  document.getElementById("closeGame").onclick=()=>{gM.style.display="none";setActiveNav("navExplorer");};
+  iM.addEventListener("click",e=>{if(e.target===iM){iM.style.display="none";setActiveNav("navExplorer");}});
+  qM.addEventListener("click",e=>{if(e.target===qM){qM.style.display="none";setActiveNav("navExplorer");}});
+}
+
+/* ── MINIJUEGO ── */
+const MAX_Q=10,PTS=5;
+let curAns=null,score=0,qAnswered=0,qShown=0,waiting=false;
+function updateGameUI(){
+  document.getElementById("score").textContent=score;
+  document.getElementById("questionCount").textContent=qShown;
+  document.getElementById("progressFill").style.width=(qShown/MAX_Q*100)+"%";
+}
+function showResults(){
+  document.getElementById("quizGameArea").style.display="none";
+  document.getElementById("resultsScreen").style.display="flex";
+  document.getElementById("finalScore").textContent=score;
+  document.getElementById("resultDetail").textContent=`Respondiste ${qAnswered} de ${MAX_Q} preguntas correctamente.`;
+  const p=score/50;
+  let badge,msg;
+  if(p===1){badge="🏆";msg="¡Puntuación perfecta!";}else if(p>=0.8){badge="🥇";msg="¡Excelente resultado!";}else if(p>=0.6){badge="🥈";msg="¡Muy buen trabajo!";}else if(p>=0.4){badge="🥉";msg="¡Sigue practicando!";}else{badge="📚";msg="¡No te rindas!";}
+  document.getElementById("resultBadge").textContent=badge;
+  document.getElementById("resultMsg").textContent=msg;
+}
+function restartGame(){
+  score=0;qAnswered=0;qShown=0;curAns=null;waiting=false;
+  document.getElementById("resultsScreen").style.display="none";
+  document.getElementById("quizGameArea").style.display="block";
+  document.getElementById("feedback").textContent="";
+  updateGameUI();
+  document.getElementById("progressFill").style.width="0%";
+  document.querySelectorAll(".answer-buttons button").forEach(b=>b.disabled=false);
+  document.getElementById("newQuestionBtn").style.display="";
+}
+function drawQuizView(type,shape){
+  quizCtx.clearRect(0,0,quizCanvas.width,quizCanvas.height);
+  const tmpC=document.createElement("canvas");tmpC.width=quizCanvas.width;tmpC.height=quizCanvas.height;
+  const tmp=tmpC.getContext("2d");
+  const margin=36;
+  const colors={lado:"#DF67A9",arriba:"#0ACBB7",frente:"#FFBC0A"};
+  tmp.strokeStyle=colors[type];tmp.lineWidth=2.5;
+  let dW,dH;
+  if(type==="lado"){dW=dims.w;dH=dims.h;}
+  else if(type==="arriba"){dW=dims.w;dH=dims.d;}
+  else{dW=dims.d;dH=dims.h;}
+  const scale=Math.min((tmpC.width-2*margin)/dW,(tmpC.height-2*margin)/dH);
+  const W=dW*scale,H=dH*scale,x=(tmpC.width-W)/2,y=(tmpC.height-H)/2;
+  const s=shape;
+  if(type==="lado"){
+    if(s==="caja"){tmp.strokeRect(x,y,W,H);}
+    else if(s==="escalon"){const lW=Math.max(1,dims.w*0.5)*(W/dims.w),bH=H*0.5;tmp.strokeRect(x,y+bH,W,bH);tmp.strokeRect(x,y,lW,H);}
+    else if(s==="cunia"){tmp.beginPath();tmp.moveTo(x,y+H);tmp.lineTo(x+W,y+H);tmp.lineTo(x,y);tmp.closePath();tmp.stroke();}
+    else if(s==="hueco"){tmp.strokeRect(x,y,W,H);const fr=0.25;tmp.strokeRect(x+W*fr,y+H*fr,W*(1-2*fr),H*(1-2*fr));}
+    else if(s==="piramide_cubos"){const uh=H/3;tmp.strokeRect(x,y+H-uh,W,uh);tmp.strokeRect(x,y+H-2*uh,W/2,uh);tmp.strokeRect(x,y,W/2,uh);}
+    else if(s==="escalon_cunia"){const cY=H*0.35;tmp.beginPath();tmp.moveTo(x,y+cY);tmp.lineTo(x+W,y);tmp.lineTo(x+W,y+H);tmp.lineTo(x,y+H);tmp.closePath();tmp.stroke();}
+    else if(s==="marco_L"){const t=Math.min(W,H)*0.28;tmp.beginPath();tmp.moveTo(x,y);tmp.lineTo(x+t,y);tmp.lineTo(x+t,y+H-t*0.4);tmp.lineTo(x+W,y+H-t*0.4);tmp.lineTo(x+W,y+H);tmp.lineTo(x,y+H);tmp.closePath();tmp.stroke();tmp.strokeRect(x,y,W,t);}
+    else tmp.strokeRect(x,y,W,H);
+  }else if(type==="arriba"){
+    if(s==="caja"||s==="cunia"){tmp.strokeRect(x,y,W,H);}
+    else if(s==="escalon"){tmp.strokeRect(x,y,W,H);tmp.beginPath();tmp.moveTo(x+W*0.5,y);tmp.lineTo(x+W*0.5,y+H);tmp.stroke();}
+    else if(s==="hueco"){tmp.strokeRect(x,y,W,H);const fr=0.25;tmp.strokeRect(x+W*fr,y+H*fr,W*(1-2*fr),H*(1-2*fr));}
+    else if(s==="piramide_cubos"){tmp.strokeRect(x,y,W,H);tmp.beginPath();tmp.moveTo(x,y+H/2);tmp.lineTo(x+W,y+H/2);tmp.moveTo(x+W/2,y);tmp.lineTo(x+W/2,y+H);tmp.stroke();tmp.setLineDash([4,4]);tmp.beginPath();tmp.moveTo(x,y);tmp.lineTo(x+W/2,y+H/2);tmp.stroke();tmp.setLineDash([]);}
+    else if(s==="escalon_cunia"){tmp.strokeRect(x,y,W,H);}
+    else if(s==="marco_L"){const t=Math.min(W,H)*0.28;tmp.beginPath();tmp.moveTo(x,y);tmp.lineTo(x+W,y);tmp.lineTo(x+W,y+t);tmp.lineTo(x+t,y+t);tmp.lineTo(x+t,y+H);tmp.lineTo(x,y+H);tmp.closePath();tmp.stroke();}
+    else tmp.strokeRect(x,y,W,H);
+  }else{
+    if(s==="caja"||s==="cunia"){tmp.strokeRect(x,y,W,H);}
+    else if(s==="escalon"){const bH=H*0.5;tmp.strokeRect(x,y+bH,W,bH);tmp.strokeRect(x,y,W,H);}
+    else if(s==="hueco"){tmp.strokeRect(x,y,W,H);const fr=0.25;tmp.strokeRect(x+W*fr,y+H*fr,W*(1-2*fr),H*(1-2*fr));}
+    else if(s==="piramide_cubos"){const uh=H/3;tmp.strokeRect(x,y+H-uh,W,uh);tmp.strokeRect(x,y+H-2*uh,W,uh);tmp.strokeRect(x,y,W/2,uh);tmp.beginPath();tmp.moveTo(x+W/2,y+H-2*uh);tmp.lineTo(x+W/2,y+H-uh);tmp.stroke();}
+    else if(s==="escalon_cunia"){const cY=H*0.35;tmp.beginPath();tmp.moveTo(x,y);tmp.lineTo(x+W,y+cY);tmp.lineTo(x+W,y+H);tmp.lineTo(x,y+H);tmp.closePath();tmp.stroke();}
+    else if(s==="marco_L"){const t=Math.min(W,H)*0.28;tmp.strokeRect(x,y,W,H);tmp.beginPath();tmp.moveTo(x,y+t);tmp.lineTo(x+W,y+t);tmp.moveTo(x,y+H-t*0.4);tmp.lineTo(x+W,y+H-t*0.4);tmp.stroke();}
+    else tmp.strokeRect(x,y,W,H);
+  }
+  quizCtx.drawImage(tmpC,0,0);
+}
+function newQuestion(){
+  if(qShown>=MAX_Q)return;
+  const shapes=["caja","escalon","cunia","hueco","piramide_cubos","escalon_cunia","marco_L"];
+  const views=["frente","arriba","lado"];
+  curAns=views[Math.floor(Math.random()*views.length)];
+  const shp=shapes[Math.floor(Math.random()*shapes.length)];
+  waiting=true;
+  setTimeout(()=>{resizeAllCanvases();drawQuizView(curAns,shp);},30);
+  qShown++;updateGameUI();
+  document.getElementById("feedback").textContent="";
+  document.getElementById("newQuestionBtn").style.display="none";
+  document.querySelectorAll(".answer-buttons button").forEach(b=>b.disabled=false);
+}
+function initGame(){
+  document.getElementById("newQuestionBtn").addEventListener("click",newQuestion);
+  document.querySelectorAll(".answer-buttons button").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      if(!curAns||!waiting)return;
+      const chosen=btn.dataset.answer;const fb=document.getElementById("feedback");waiting=false;
+      if(chosen===curAns){score+=PTS;qAnswered++;fb.style.color="#0ACBB7";fb.textContent="✅ ¡Correcto! +"+PTS+" puntos";}
+      else{fb.style.color="#DF67A9";const nm={frente:'Frente',arriba:'Arriba',lado:'Lateral'};fb.textContent="❌ Era: "+nm[curAns]+". ¡Sigue!";}
+      curAns=null;updateGameUI();
+      document.querySelectorAll(".answer-buttons button").forEach(b=>b.disabled=true);
+      if(qShown>=MAX_Q)setTimeout(showResults,1200);else document.getElementById("newQuestionBtn").style.display="";
+    });
+  });
+  document.getElementById("restartBtn").addEventListener("click",restartGame);
+}
+
+/* ── AUDIO ── */
+function initAudio(){
+  const muteBtn=document.getElementById("muteBtn");
+  const audio=new Audio("https://raw.githubusercontent.com/sainther0222/music/main/Sue%C3%B1os%20Pixelados%20(2).mp3");
+  audio.loop=true;audio.volume=0.6;
+  let isMuted=false,started=false;
+  function tryPlay(){if(started)return;started=true;audio.play().then(()=>muteBtn.classList.add("playing")).catch(()=>{});}
+  document.addEventListener("click",tryPlay,{once:true});
+  muteBtn.addEventListener("click",()=>{
+    if(!started){tryPlay();return;}
+    isMuted=!isMuted;audio.muted=isMuted;
+    if(isMuted){muteBtn.textContent="🔇";muteBtn.classList.add("muted");muteBtn.classList.remove("playing");}
+    else{muteBtn.textContent="🔊";muteBtn.classList.remove("muted");muteBtn.classList.add("playing");}
+  });
+}
+
+window.addEventListener("load",()=>{
+  resizeAllCanvases();updateText();initSliders();initShapes();
+  initNav();initGame();initAudio();initIsoRotation();drawAll();
+});
+window.addEventListener("resize",()=>{resizeAllCanvases();drawAll();});
+</script>
+</body>
+</html>
