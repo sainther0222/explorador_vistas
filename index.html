@@ -170,7 +170,7 @@
 
   /* ── GAME MODAL ── */
   #gameBox{
-    width:min(720px,95vw);background:linear-gradient(135deg,#0d0f2e,#1a0d3a);
+    width:min(900px,95vw);background:linear-gradient(135deg,#0d0f2e,#1a0d3a);
     border-radius:16px;border:1px solid rgba(223,103,169,.4);padding:18px 20px;
     box-shadow:0 20px 60px rgba(0,0,0,.6);animation:modalIn .3s ease;
   }
@@ -183,7 +183,40 @@
   .stat-pill span{color:var(--c1);font-weight:700;}
   #closeGame{border:2px solid rgba(223,103,169,.5);border-radius:999px;padding:4px 12px;font-size:12px;background:rgba(223,103,169,.1);color:#DF67A9;cursor:pointer;transition:all .2s;font-weight:600;}
   #closeGame:hover{background:rgba(223,103,169,.25);transform:scale(1.05);}
-  #quizCanvas{display:block;width:100%;height:clamp(160px,24vw,240px);background:rgba(10,10,30,.8);border-radius:10px;margin-top:6px;border:1px solid rgba(223,103,169,.2);}
+
+  /* ── QUIZ: dos paneles lado a lado ── */
+  .quiz-panels{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:6px;
+  }
+  @media(max-width:480px){.quiz-panels{grid-template-columns:1fr;}}
+  .quiz-panel-box{display:flex;flex-direction:column;gap:4px;}
+  .quiz-panel-label{
+    font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+    text-align:center;padding:3px 0;border-radius:6px;
+  }
+  .quiz-panel-label.iso-label{
+    color:rgba(255,255,255,0.5);
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.1);
+  }
+  .quiz-panel-label.view-label{
+    color:#fff;
+    background:rgba(223,103,169,0.15);
+    border:1px solid rgba(223,103,169,0.35);
+  }
+  #quizIsoCanvas{
+    display:block;width:100%;height:clamp(150px,22vw,230px);
+    background:rgba(10,10,30,.85);border-radius:10px;
+    border:1px solid rgba(255,255,255,0.12);
+  }
+  #quizCanvas{
+    display:block;width:100%;height:clamp(150px,22vw,230px);
+    background:rgba(10,10,30,.85);border-radius:10px;
+    border:1px solid rgba(223,103,169,.3);
+  }
   .answer-buttons{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
   .answer-buttons button{flex:1;padding:9px 8px;border-radius:999px;border:2px solid transparent;background:linear-gradient(135deg,var(--c3),#c050a0);color:#fff;cursor:pointer;font-size:clamp(13px,1.6vw,15px);font-weight:700;transition:all .25s;}
   .answer-buttons button:hover{background:linear-gradient(135deg,var(--c2),#09b5a3);color:#000;transform:translateY(-3px);box-shadow:0 8px 22px rgba(10,203,183,.4);}
@@ -325,8 +358,17 @@
         <div class="stat-pill">Pregunta: <span id="questionCount">0</span>/10</div>
         <div class="stat-pill">Puntos: <span id="score">0</span>/50</div>
       </div>
-      <p style="margin-top:7px;font-size:13px;color:#ccc">Observa la figura y responde si es vista de <strong style="color:var(--c1)">Frente</strong>, <strong style="color:var(--c2)">Arriba</strong> o <strong style="color:var(--c4)">Lateral</strong>.</p>
-      <canvas id="quizCanvas"></canvas>
+      <p style="margin-top:7px;font-size:13px;color:#ccc">Observa la figura 3D y su vista. ¿Esa vista es de <strong style="color:#FFBC0A">Frente</strong>, <strong style="color:#0ACBB7">Arriba</strong> o <strong style="color:#DF67A9">Lateral</strong>?</p>
+      <div class="quiz-panels">
+        <div class="quiz-panel-box">
+          <div class="quiz-panel-label iso-label">🧊 Figura 3D</div>
+          <canvas id="quizIsoCanvas"></canvas>
+        </div>
+        <div class="quiz-panel-box">
+          <div class="quiz-panel-label view-label">❓ ¿Qué vista es esta?</div>
+          <canvas id="quizCanvas"></canvas>
+        </div>
+      </div>
       <div class="answer-buttons">
         <button data-answer="lado">↔ Lateral</button>
         <button data-answer="arriba">⬆ Arriba</button>
@@ -355,11 +397,13 @@ const frontCanvas=document.getElementById("frontCanvas");
 const topCanvas=document.getElementById("topCanvas");
 const sideCanvas=document.getElementById("sideCanvas");
 const quizCanvas=document.getElementById("quizCanvas");
+const quizIsoCanvas=document.getElementById("quizIsoCanvas");
 const isoCtx=isoCanvas.getContext("2d");
 const frontCtx=frontCanvas.getContext("2d");
 const topCtx=topCanvas.getContext("2d");
 const sideCtx=sideCanvas.getContext("2d");
 const quizCtx=quizCanvas.getContext("2d");
+const quizIsoCtx=quizIsoCanvas.getContext("2d");
 
 function resizeAllCanvases(){
   [isoCanvas,frontCanvas,topCanvas,sideCanvas].forEach(c=>{
@@ -367,7 +411,9 @@ function resizeAllCanvases(){
     c.width=r.width||300; c.height=r.height||200;
   });
   const qr=quizCanvas.getBoundingClientRect();
-  quizCanvas.width=qr.width||400; quizCanvas.height=qr.height||200;
+  quizCanvas.width=qr.width||300; quizCanvas.height=qr.height||200;
+  const qir=quizIsoCanvas.getBoundingClientRect();
+  quizIsoCanvas.width=qir.width||300; quizIsoCanvas.height=qir.height||200;
 }
 
 let rotX=-28,rotY=45,isDragging=false,lastMX=0,lastMY=0;
@@ -589,6 +635,31 @@ function restartGame(){
   document.querySelectorAll(".answer-buttons button").forEach(b=>b.disabled=false);
   document.getElementById("newQuestionBtn").style.display="";
 }
+function drawQuizIso(shape){
+  const ctx=quizIsoCtx;
+  const c=quizIsoCanvas;
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.save();
+  ctx.translate(c.width/2, c.height/2);
+  const w=dims.w,h=dims.h,d=dims.d;
+  const s=Math.min(c.width/(Math.max(w,d)+4), c.height/(Math.max(h,d)+4))*0.78;
+  const{V,F}=getGeometry(shape,w,h,d);
+  const proj=V.map(([px,py,pz])=>rotate3D(px*s,py*s,pz*s));
+  const fd=F.map(f=>({...f,avgZ:f.v.reduce((sum,i)=>sum+proj[i].z,0)/f.v.length}));
+  fd.sort((a,b)=>a.avgZ-b.avgZ);
+  fd.forEach(face=>{
+    const pts=face.v.map(i=>proj[i]);
+    if(face.hole) drawFaceWithHole(ctx,pts,face.hole.map(i=>proj[i]),face.c);
+    else drawFacePoly(ctx,pts,face.c,face.c2);
+  });
+  // etiqueta del nombre de la figura
+  const names={caja:'Caja',escalon:'Escalón',cunia:'Cuña',hueco:'Hueco',piramide_cubos:'Pirámide',escalon_cunia:'Escalón+Cuña',marco_L:'Marco en L'};
+  ctx.font='bold 11px Arial';
+  ctx.fillStyle='rgba(255,255,255,0.55)';
+  ctx.textAlign='center';
+  ctx.fillText(names[shape]||shape, 0, c.height/2-8);
+  ctx.restore();
+}
 function drawQuizView(type,shape){
   quizCtx.clearRect(0,0,quizCanvas.width,quizCanvas.height);
   const tmpC=document.createElement("canvas");tmpC.width=quizCanvas.width;tmpC.height=quizCanvas.height;
@@ -638,7 +709,7 @@ function newQuestion(){
   curAns=views[Math.floor(Math.random()*views.length)];
   const shp=shapes[Math.floor(Math.random()*shapes.length)];
   waiting=true;
-  setTimeout(()=>{resizeAllCanvases();drawQuizView(curAns,shp);},30);
+  setTimeout(()=>{resizeAllCanvases();drawQuizIso(shp);drawQuizView(curAns,shp);},30);
   qShown++;updateGameUI();
   document.getElementById("feedback").textContent="";
   document.getElementById("newQuestionBtn").style.display="none";
